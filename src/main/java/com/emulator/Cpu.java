@@ -6,8 +6,6 @@ public class Cpu {
 
     private static final Random RANDOM = new Random(); // Generates random bytes
 
-    private int opcode; // The portion of a machine language instruction that specifies the operation to be performed.
-
     private int[] v = new int[16]; // 16 general purpose 8-bit registers, usually referred to as Vx
 
     private int i; // 16-bit register called I. Used to store memory addresses, so only the lowest 12 bits are usually used.
@@ -24,7 +22,20 @@ public class Cpu {
     private int st; // The sound timer register (ST) also decrements at a rate of 60Hz, however, as long as ST's value
                     // is greater than zero, the Chip-8 buzzer will sound.
 
-    public void perform() {
+    private final Memory memory;
+
+    public Cpu(Memory memory) {
+        this.memory = memory;
+        pc = Memory.START;
+    }
+
+    public int fetch() {
+        return (memory.read(pc) << 8) | memory.read(pc + 1);
+    }
+
+    public void decodeAndExecute(int opcode) {
+        assert 0x0000 >= opcode && opcode <= 0xFFFF;
+
         switch (opcode & 0xF000) {
             case 0x0000 -> {
                 switch (opcode) {
@@ -36,11 +47,9 @@ public class Cpu {
                         pc = stack[sp--];
                         pc += 2;
                     }
-                    default -> {
-                        // 0nnn - SYS addr
-                        // Jump to a machine code routine at nnn.
-
-                        // This instruction is only used on the old computers on which Chip-8 was originally implemented. It is ignored by modern interpreters.
+                    default -> { // 0nnn - SYS addr - Jump to a machine code routine at nnn.
+                        // This instruction is only used on the old computers on which Chip-8 was originally implemented.
+                        // It is ignored by modern interpreters.
                     }
                 }
             }
@@ -191,17 +200,29 @@ public class Cpu {
                         pc += 2;
                     }
                     case 0xF029 -> { // Fx29 - LD F, Vx - Set I = location of sprite for digit Vx.
-                        // The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
-                        // See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
+                        i = memory.getFontSpriteAddress(v[(opcode & 0x0F00) >>> 8]);
+                        pc += 2;
                     }
                     case 0xF033 -> { // Fx33 - LD B, Vx - Store BCD (binary-coded decimal) representation of Vx in memory locations I, I+1, and I+2.
-                        //The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
+                        int x = v[(opcode & 0x0F00) >>> 8];
+                        memory.write(i, x / 100);
+                        memory.write(i + 1, x / 10 % 10);
+                        memory.write(i + 2, x % 10);
+                        pc += 2;
                     }
                     case 0xF055 -> { // Fx55 - LD [I], Vx - Store registers V0 through Vx in memory starting at location I.
-                        // The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
+                        int x = (opcode & 0x0F00) >>> 8;
+                        for (int j = 0; j < x; j++) {
+                            memory.write(i + j, v[j]);
+                        }
+                        pc += 2;
                     }
                     case 0xF065 -> { // Fx65 - LD Vx, [I] - Read registers V0 through Vx from memory starting at location I.
-                        // The interpreter reads values from memory starting at location I into registers V0 through Vx.
+                        int x = (opcode & 0x0F00) >>> 8;
+                        for (int j = 0; j < x; j++) {
+                            v[j] = memory.read(i + j);
+                        }
+                        pc += 2;
                     }
                 }
             }
