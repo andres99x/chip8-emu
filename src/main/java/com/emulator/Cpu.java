@@ -6,7 +6,7 @@ public class Cpu {
 
     private static final Random RANDOM = new Random(); // Generates random bytes
 
-    private int[] v = new int[16]; // 16 general purpose 8-bit registers, usually referred to as Vx
+    private final int[] v = new int[16]; // 16 general purpose 8-bit registers, usually referred to as Vx
 
     private int i; // 16-bit register called I. Used to store memory addresses, so only the lowest 12 bits are usually used.
 
@@ -14,7 +14,7 @@ public class Cpu {
 
     private int sp; // The stack pointer (SP) can be 8-bit, it is used to point to the topmost level of the stack.
 
-    private int[] stack = new int[16]; // The stack is an array of 16 16-bit values, used to store the address that the
+    private final int[] stack = new int[16]; // The stack is an array of 16 16-bit values, used to store the address that the
                                         // interpreter should return to when finished with a subroutine.
 
     private int dt; // The delay timer register (DT) does nothing more than subtract 1 from the value of DT at a rate of
@@ -24,8 +24,11 @@ public class Cpu {
 
     private final Memory memory;
 
-    public Cpu(Memory memory) {
+    private final Screen screen;
+
+    public Cpu(Memory memory, Screen screen) {
         this.memory = memory;
+        this.screen = screen;
         pc = Memory.START;
     }
 
@@ -39,9 +42,9 @@ public class Cpu {
         switch (opcode & 0xF000) {
             case 0x0000 -> {
                 switch (opcode) {
-                    case 0x00E0 -> {
-                        // 00E0 - CLS
-                        // Clear the display.
+                    case 0x00E0 -> { // 00E0 - CLS - Clear the display.
+                        screen.clear();
+                        pc += 2;
                     }
                     case 0x00EE -> { // 00EE - RET - Return from a subroutine.
                         pc = stack[sp--];
@@ -162,11 +165,26 @@ public class Cpu {
                 pc += 2;
             }
             case 0xD000 -> { // Dxyn - DRW Vx, Vy, nibble - Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
-                // The interpreter reads n bytes from memory, starting at the address stored in I.
-                // These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen.
-                // If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0.
-                // If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen.
-                // See instruction 8xy3 for more information on XOR, and section 2.4, Display, for more information on the Chip-8 screen and sprites.
+                int x = v[(opcode & 0x0F00) >>> 8];
+                int y = v[(opcode & 0x00F0) >>> 4];
+                int n = opcode & 0x000F;
+
+                for (int spriteY = 0; spriteY < n; spriteY++) {
+                    int s = memory.read(i + spriteY);
+                    for (int spriteX = 0; spriteX < 8; spriteX++) {
+                        int pixel = (s >>> (0x7 - spriteX)) & 0x1;
+                        // If pixel is 0 do nothing because we are XORing
+                        if (pixel == 0x1) {
+                            int screenX = (x + spriteX) % Screen.WIDTH; // Wrap around if outside screen
+                            int screenY = (y + spriteY) % Screen.HEIGHT; // Wrap around if outside screen
+                            if (this.screen.getPixel(screenX, screenY) == 0x1) {
+                                v[0xF] = 1; // Collision
+                            }
+                            screen.setPixel(screenX, screenY);
+                        }
+                    }
+                }
+
             }
             case 0xE000 -> {
                 switch (opcode & 0xF0FF) {
