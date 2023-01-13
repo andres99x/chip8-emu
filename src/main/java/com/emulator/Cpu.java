@@ -184,7 +184,7 @@ public class Cpu {
                         }
                     }
                 }
-
+                pc += 2;
             }
             case 0xE000 -> {
                 switch (opcode & 0xF0FF) {

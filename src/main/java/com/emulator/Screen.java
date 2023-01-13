@@ -30,7 +30,7 @@ public class Screen {
         assert 0 <= x && x < WIDTH;
         assert 0 <= y && y < HEIGHT;
 
-        pixels[x][y] ^= pixels[x][y];
+        pixels[x][y] = !pixels[x][y];
     }
 
 }

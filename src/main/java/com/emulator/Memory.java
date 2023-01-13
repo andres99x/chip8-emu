@@ -1,5 +1,8 @@
 package com.emulator;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 public class Memory {
 
     public static int START = 0x200; // (512) Start of most Chip-8 programs
@@ -30,6 +33,14 @@ public class Memory {
 
     public Memory() {
         loadFonts();
+    }
+
+    public void loadRom(InputStream rom) throws IOException {
+        int addr = START;
+        int b;
+        while ((b = rom.read()) != -1) {
+            write(addr++, b);
+        }
     }
 
     public int read(int addr) {
